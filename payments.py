@@ -168,6 +168,9 @@ def edit_job():
         data_strings[9].set(data[4]) # status
         data_strings[10].set(data[5])
 
+        # set default job status selector
+        job_status.set(data_strings[9].get())
+
         if float(data_strings[7].get()) <= 0:
             entry_wigits[7].config(bg="red")
         else:
@@ -192,6 +195,7 @@ def edit_job():
         # activate the add cost and add payment buttons
         add_payment.config(state="normal")
         add_cost.config(state="normal")
+        change_status.config(state="normal")
 
     def add_cost():
         def save_cost():
@@ -239,7 +243,6 @@ def edit_job():
         # submit button to save it
         tk.Button(cost_window, text="Submit", command=save_cost).grid(row=len(labels), column=0, columnspan=2, sticky="ew")
 
-
     def add_payment():
         """
         Add a payment to payments table and update the job display with new payment information.
@@ -283,7 +286,26 @@ def edit_job():
         
         # submit button to save it
         tk.Button(payment_window, text="Submit", command=save_payment).grid(row=len(labels), column=0, columnspan=2, sticky="ew")
+
+    def alter_status(event):
+        """
+        Change job from Incomplete to Complete or vice versa.
+        """
+
+        # find the selected job
+        conn   = sqlite3.connect("databases/jobs.db")
+        cursor = conn.cursor()
+        selected = combobox.get()
         
+        # use dictionary to extract the job ID number and then populate fields for editing
+        # with selected job based on info in the database
+        job_id = info_dict[selected]
+        cursor.execute("UPDATE jobs SET job_status = ? WHERE job_id = ?", (job_status.get(), job_id))
+        conn.commit()
+
+        # update the view
+        show_job_details("")
+
 
     edit_window = tk.Toplevel(root)
     edit_window.title("Edit Job")
@@ -323,6 +345,13 @@ def edit_job():
     # add two deactivated buttons next to the dropdown box to ADD PAYMENT and ADD COST for a job
     add_payment = tk.Button(edit_window, text="Add Payment", width=20, command=add_payment, state="disabled")
     add_cost    = tk.Button(edit_window, text="Add Cost", width=20, command=add_cost, state="disabled")
+    
+    statuses = ["Incomplete", "Complete"]
+    job_status = tk.StringVar()
+    change_status = ttk.Combobox(edit_window, textvariable=job_status, values=statuses)
+    change_status.grid(row=0,column=4)
+    change_status.bind("<<ComboboxSelected>>", alter_status)
+
     add_payment.grid(row=0, column=2)
     add_cost.grid(row=0, column=3)
 
