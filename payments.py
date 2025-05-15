@@ -75,6 +75,8 @@ def new_job():
         )
 
         conn.commit()
+
+
         conn.close()
 
         job_window.destroy()
@@ -93,7 +95,8 @@ def new_job():
         if ifield >= 3 and ifield < 5:
             entry.insert(0, "0")
         if ifield == 5:
-            entry.insert(0, "Unpaid")
+            entry.insert(0, "Incomplete")
+            entry.config(state="disabled")
 
     
     tk.Button(job_window, text="Submit", width=20, command=save_job).grid(row=3, column=len(field_names)-1)
@@ -121,27 +124,59 @@ def edit_job():
         # populate the entries
         cursor.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id))
         data = cursor.fetchone()
-        print(data)
+        total_paid = cursor.execute("SELECT SUM(payment_amount) FROM payments WHERE job_id = ?", (job_id))
+        total_paid = cursor.fetchone()
+        if total_paid[0] is None:
+            paid_val = 0.0
+        else:
+            paid_val = total_paid[0]
 
+        # find all the costs of each category and the total cost for this job from costs table
+        cursor.execute("SELECT SUM(amount) FROM costs WHERE job_id = ? AND category = 'Materials'", (job_id))
+        material = cursor.fetchone()
+        cursor.execute("SELECT SUM(amount) FROM costs WHERE job_id = ? AND category = 'Labour'", (job_id))
+        labour = cursor.fetchone()
+        cursor.execute("SELECT SUM(amount) FROM costs WHERE job_id = ? AND category = 'Misc'", (job_id))
+        misc = cursor.fetchone()
+
+        if material[0] is None:
+            material_cost = 0.0
+        else:
+            material_cost = material[0]
+        if labour[0] is None:
+            labour_cost = 0.0
+        else:
+            labour_cost = labour[0]
+        if misc[0] is None:
+            misc_cost = 0.0
+        else:
+            misc_cost = misc[0]
+        total_cost = float(misc_cost) + float(labour_cost) + float(material_cost)
         data_strings[0].set(data[1])
         data_strings[1].set(data[2])
         data_strings[2].set(data[3])
-        data_strings[4].set(data[4])
-        data_strings[5].set(data[5])
-        data_strings[6].set(f"{float(data[4])+float(data[5])}")
+        data_strings[3].set(float(paid_val))
+        data_strings[4].set(float(material_cost))
+        data_strings[5].set(float(labour_cost))
+        data_strings[6].set(f"{total_cost}")
         data_strings[7].set(f"{float(data[3])-float(data_strings[6].get())}") # profit / loss
-        data_strings[8].set(data[6]) # status
-        data_strings[9].set(data[7])
+        data_strings[8].set(f"{float(paid_val)-float(data_strings[6].get())}")
+        data_strings[9].set(data[6]) # status
+        data_strings[10].set(data[7])
 
         if float(data_strings[7].get()) <= 0:
             entry_wigits[7].config(bg="red")
         else:
             entry_wigits[7].config(bg="green")
-
-        if data_strings[8].get() == "Unpaid":
+        if float(data_strings[8].get()) <= 0:
             entry_wigits[8].config(bg="red")
         else:
             entry_wigits[8].config(bg="green")
+
+        if data_strings[9].get() == "Incomplete":
+            entry_wigits[9].config(bg="red")
+        else:
+            entry_wigits[9].config(bg="green")
         
         # now obtain all the payments associated with this job ID in the payments table
         cursor.execute("SELECT SUM(payment_amount) FROM payments WHERE job_id = ?", (job_id))
@@ -155,14 +190,64 @@ def edit_job():
         add_cost.config(state="normal")
 
     def add_cost():
-        pass
+        def save_cost():
+            cursor.execute(
+                '''
+                INSERT INTO costs (category, amount, date, job_id) VALUES (?, ?, ?, ?)
+                ''', (category.get(), entries[0].get(), entries[1].get(), job_id)
+            )
+            conn.commit()
+
+            cost_window.destroy()
+            show_job_details("")
+        
+        # find the selected job
+        conn   = sqlite3.connect("databases/jobs.db")
+        cursor = conn.cursor()
+        selected = combobox.get()
+        
+        # use dictionary to extract the job ID number and then populate fields for editing
+        # with selected job based on info in the database
+        job_id = info_dict[selected]
+        cursor.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id))
+        data = cursor.fetchone() 
+        cost_window = tk.Toplevel(edit_window)
+        cost_window.title(f"Add Cost - {data[1]}")
+
+        labels  = ["Category", "Payment Amount (£)", "Date (dd-mm-yy)"]
+        cost_types = ["Materials", "Labour", "Misc"]
+        entries = []
+        for i in range(len(labels)):
+            tk.Label(cost_window, text=f"{labels[i]}").grid(row=i, column=0)
+            if i == 0:
+                # dropdown to select job to edit
+                category = tk.StringVar()
+                catbox = ttk.Combobox(cost_window, textvariable=category, values=cost_types)
+                catbox.grid(row=i, column=1)
+            else:
+                entry = tk.Entry(cost_window)
+                entries.append(entry)
+                entry.grid(row=i, column=1)
+        
+        # submit button to save it
+        tk.Button(cost_window, text="Submit", command=save_cost).grid(row=len(labels), column=0, columnspan=2, sticky="ew")
+
+
     def add_payment():
         """
         Add a payment to payments table and update the job display with new payment information.
         """
 
         def save_payment():
-            pass
+            cursor.execute(
+                '''
+                INSERT INTO payments (payment_amount, payment_date, job_id) VALUES (?, ?, ?)
+                ''', (entries[0].get(), entries[1].get(), job_id)
+            )
+            conn.commit()
+
+            payment_window.destroy()
+            show_job_details("")
 
         # find the selected job
         conn   = sqlite3.connect("databases/jobs.db")
@@ -182,12 +267,12 @@ def edit_job():
         for i in range(len(labels)):
             tk.Label(payment_window, text=f"{labels[i]}").grid(row=i, column=0)
             entry = tk.Entry(payment_window)
-            entries.append(entries)
+            entries.append(entry)
             entry.grid(row=i, column=1)
         
         # submit button to save it
         tk.Button(payment_window, text="Submit", command=save_payment).grid(row=len(labels), column=0, columnspan=2, sticky="ew")
-            
+        
 
     edit_window = tk.Toplevel(root)
     edit_window.title("Edit Job")
@@ -215,11 +300,11 @@ def edit_job():
     combobox.bind("<<ComboboxSelected>>", show_job_details)
 
     # display the selected information
-    fields = ["Job Name", "Client Name", "Quote", "Amount Paid", "Materials Cost", "Labour Cost", "Total Cost", "Predicted Profit/Loss", "Status", "Notes"]
+    fields = ["Job Name", "Client Name", "Quote", "Amount Paid", "Materials Cost", "Labour Cost", "Total Cost", "Predicted P/L", "Realised P/L", "Status", "Notes"]
     data_strings = [tk.StringVar() for _ in fields]
     entry_wigits = []
     for i in range(len(fields)):
-        tk.Label(edit_window, text = f"{fields[i]}", width=20).grid(row=1, column=i)
+        tk.Label(edit_window, text = f"{fields[i]}", width=15).grid(row=1, column=i)
         entry  = tk.Label(edit_window, textvariable = data_strings[i], relief="sunken", bg="grey", fg="black", anchor="w", width=20)
         entry.grid(row=2, column=i)
         entry_wigits.append(entry)
