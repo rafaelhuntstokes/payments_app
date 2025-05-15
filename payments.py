@@ -198,7 +198,7 @@ def edit_job():
             cursor.execute(
                 '''
                 INSERT INTO costs (category, amount, date, job_id) VALUES (?, ?, ?, ?)
-                ''', (category.get(), entries[0].get(), entries[1].get(), job_id)
+                ''', (category.get(), entries[0].get(), cost_date_entry.get(), job_id)
             )
             conn.commit()
 
@@ -228,6 +228,9 @@ def edit_job():
                 category = tk.StringVar()
                 catbox = ttk.Combobox(cost_window, textvariable=category, values=cost_types)
                 catbox.grid(row=i, column=1)
+            elif i == 2:
+                cost_date_entry = DateEntry(cost_window, date_patter="dd-mm-yyyy")
+                cost_date_entry.grid(row=i, column=1)
             else:
                 entry = tk.Entry(cost_window)
                 entries.append(entry)
@@ -246,7 +249,7 @@ def edit_job():
             cursor.execute(
                 '''
                 INSERT INTO payments (payment_amount, payment_date, job_id) VALUES (?, ?, ?)
-                ''', (entries[0].get(), entries[1].get(), job_id)
+                ''', (entries[0].get(), payment_date_entry.get(), job_id)
             )
             conn.commit()
 
@@ -270,9 +273,13 @@ def edit_job():
         entries = []
         for i in range(len(labels)):
             tk.Label(payment_window, text=f"{labels[i]}").grid(row=i, column=0)
-            entry = tk.Entry(payment_window)
-            entries.append(entry)
-            entry.grid(row=i, column=1)
+            if i == 1:
+                payment_date_entry = DateEntry(payment_window, date_patter="dd-mm-yyyy")
+                payment_date_entry.grid(row=i, column=1)
+            else:
+                entry = tk.Entry(payment_window)
+                entries.append(entry)
+                entry.grid(row=i, column=1)
         
         # submit button to save it
         tk.Button(payment_window, text="Submit", command=save_payment).grid(row=len(labels), column=0, columnspan=2, sticky="ew")
