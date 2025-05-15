@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkcalendar import DateEntry
 import sqlite3
 
 def setup_databases():
@@ -17,10 +18,10 @@ def setup_databases():
             job_name TEXT,
             client_name TEXT,
             quote_value REAL,
-            material_cost REAL,
-            labour_cost REAL,
             job_status TEXT,
-            notes TEXT
+            notes TEXT,
+            start_date TEXT,
+            end_date TEXT
         )
         '''
         )
@@ -62,21 +63,15 @@ def new_job():
         """
         conn   = sqlite3.connect("databases/jobs.db")
         cursor = conn.cursor()
-
-        values = [] 
-        for ifield in range(len(field_names)):
-            values.append(entry_fields[ifield].get())
         
         cursor.execute(
             '''
-            INSERT INTO jobs (job_name, client_name, quote_value, material_cost, labour_cost, job_status, notes)
+            INSERT INTO jobs (job_name, client_name, start_date, end_date, quote_value, job_status, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?) 
-            ''', (values[0], values[1], values[2], values[3], values[4], values[5], values[6])
+            ''', (entry_fields[0].get(), entry_fields[1].get(), start_date_entry.get(), end_date_entry.get(), entry_fields[2].get(), entry_fields[3].get(), entry_fields[4].get())
         )
 
         conn.commit()
-
-
         conn.close()
 
         job_window.destroy()
@@ -84,19 +79,27 @@ def new_job():
     job_window = tk.Toplevel(root)
     job_window.title("New Job")
 
-    field_names  = ["Job Name", "Client Name", "Quote", "Materials Cost", "Labour Cost", "Job status", "Notes"]
+    field_names  = ["Job Name", "Client Name", "Quote", "Job status", "Start Date", "End Date", "Notes"]
     entry_fields = [] 
     for ifield in range(len(field_names)):
         tk.Label(job_window, text = f"{field_names[ifield]}").grid(row=0, column=ifield)
-        entry = tk.Entry(job_window)
-        entry_fields.append(entry)
-        entry.grid(row=1, column=ifield)
+        
+        if ifield < 4 or ifield > 5:
+            entry = tk.Entry(job_window)
+            entry_fields.append(entry)
+            entry.grid(row=1, column=ifield)
 
-        if ifield >= 3 and ifield < 5:
-            entry.insert(0, "0")
-        if ifield == 5:
+        if ifield == 3:
             entry.insert(0, "Incomplete")
             entry.config(state="disabled")
+        if ifield == 4:
+            start_date_entry = DateEntry(job_window, date_patter="dd-mm-yyyy")
+            start_date_entry.grid(row=1, column=ifield)
+        if ifield == 5:
+            end_date_entry = DateEntry(job_window, date_patter="dd-mm-yyyy")
+            end_date_entry.grid(row=1, column=ifield)
+            
+        
 
     
     tk.Button(job_window, text="Submit", width=20, command=save_job).grid(row=3, column=len(field_names)-1)
@@ -124,6 +127,7 @@ def edit_job():
         # populate the entries
         cursor.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id))
         data = cursor.fetchone()
+        print(data)
         total_paid = cursor.execute("SELECT SUM(payment_amount) FROM payments WHERE job_id = ?", (job_id))
         total_paid = cursor.fetchone()
         if total_paid[0] is None:
@@ -161,8 +165,8 @@ def edit_job():
         data_strings[6].set(f"{total_cost}")
         data_strings[7].set(f"{float(data[3])-float(data_strings[6].get())}") # profit / loss
         data_strings[8].set(f"{float(paid_val)-float(data_strings[6].get())}")
-        data_strings[9].set(data[6]) # status
-        data_strings[10].set(data[7])
+        data_strings[9].set(data[4]) # status
+        data_strings[10].set(data[5])
 
         if float(data_strings[7].get()) <= 0:
             entry_wigits[7].config(bg="red")
